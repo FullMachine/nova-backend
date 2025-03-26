@@ -1,15 +1,12 @@
-from flask import Flask, request, jsonify
-
+from flask import Flask, jsonify, request
 app = Flask(__name__)
 
-@app.route("/")
+# Home route
+@app.route('/')
 def home():
-    return "Nova Backend is live!"
+    return 'Nova Backend is live!'
 
-@app.route("/analyze", methods=["POST"])
-def analyze():
-    data = request.json
-    return jsonify({"message": "Received data", "data": data})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+# Test route
+@app.route('/ping', methods=['GET'])
+def ping():
+    return jsonify({'message': 'Nova says pong!'}), 200
