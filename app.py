@@ -12,106 +12,100 @@ def home():
 def ping():
     return jsonify({'message': 'Nova says pong!'}), 200
 
-# ------------------ NBA Stats Endpoint (BallDontLie) ------------------
+# ------------------ NBA Stats (BallDontLie) ------------------
+# Official docs: https://www.balldontlie.io/#introduction
+# We now require both ?player= and ?season= (e.g., season=2022)
 @app.route('/nba/player_stats', methods=['GET'])
 def nba_player_stats():
-    player_name = request.args.get('player')
-    if not player_name:
-        return jsonify({'error': 'Missing player name'}), 400
-
-    # Clean the search query to lower case and strip extra spaces
-    search_query = player_name.strip().lower()
+    player_name = request.args.get('player')  # e.g. "lebron james"
+    season = request.args.get('season')       # e.g. "2022"
+    if not player_name or not season:
+        return jsonify({
+            'error': 'Missing params. Usage: /nba/player_stats?player=lebron james&season=2022'
+        }), 400
 
     try:
-        # Search for the player using BallDontLie API
-        search_url = f"https://www.balldontlie.io/api/v1/players?search={search_query}"
-        search_response = requests.get(search_url)
+        # 1) Search for the player
+        search_url = f"https://www.balldontlie.io/api/v1/players?search={player_name}"
+        search_resp = requests.get(search_url)
         try:
-            search_data = search_response.json()
-        except Exception as e:
+            search_data = search_resp.json()
+        except:
             return jsonify({
-                'error': 'Error parsing JSON from players endpoint',
-                'raw_response': search_response.text
+                'error': 'Error parsing JSON from BallDontLie search',
+                'raw_response': search_resp.text
             }), 500
 
         if not search_data.get('data'):
             return jsonify({'error': 'Player not found'}), 404
 
-        # Attempt to pick the best matching player based on name
-        best_match = None
-        for player in search_data['data']:
-            full_name = f"{player.get('first_name', '')} {player.get('last_name', '')}".strip().lower()
-            if search_query in full_name:
-                best_match = player
-                break
-        if not best_match:
-            best_match = search_data['data'][0]
-        player_id = best_match['id']
+        # Grab the first matching player
+        player_id = search_data['data'][0]['id']
 
-        # Fetch season averages for that player
-        stats_url = f"https://www.balldontlie.io/api/v1/season_averages?player_ids[]={player_id}"
-        stats_response = requests.get(stats_url)
+        # 2) Fetch season averages
+        # BallDontLie expects ?season=YYYY and player_ids[]=ID
+        stats_url = f"https://www.balldontlie.io/api/v1/season_averages?season={season}&player_ids[]={player_id}"
+        stats_resp = requests.get(stats_url)
         try:
-            stats = stats_response.json()
-        except Exception as e:
+            stats_data = stats_resp.json()
+        except:
             return jsonify({
-                'error': 'Error parsing JSON from season averages endpoint',
-                'raw_response': stats_response.text
+                'error': 'Error parsing JSON from BallDontLie season averages',
+                'raw_response': stats_resp.text
             }), 500
 
-        return jsonify(stats), 200
+        return jsonify(stats_data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ Soccer Stats Endpoint (API-Football via RapidAPI) ------------------
+# ------------------ Soccer Player Stats (API-Football) ------------------
+# Official docs: https://www.api-football.com/documentation-v3
+# Typically requires ?player=, ?league=, and ?season= (e.g., league=39, season=2023)
 @app.route('/soccer/player_stats', methods=['GET'])
-def soccer_stats():
-    player_name = request.args.get('player')
-    if not player_name:
-        return jsonify({'error': 'Missing player name'}), 400
+def soccer_player_stats():
+    player_name = request.args.get('player')   # e.g. "ronaldo"
+    league = request.args.get('league')        # e.g. "39" (EPL)
+    season = request.args.get('season')        # e.g. "2023"
+    if not player_name or not league or not season:
+        return jsonify({
+            'error': 'Missing params. Usage: /soccer/player_stats?player=ronaldo&league=39&season=2023'
+        }), 400
 
-    # Clean the search query
-    search_query = player_name.strip().lower()
     headers = {
         'X-RapidAPI-Key': os.environ.get('API_FOOTBALL_KEY'),
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
     }
-    url = f"https://api-football-v1.p.rapidapi.com/v3/players?search={search_query}&season=2023"
+    # Example: https://api-football-v1.p.rapidapi.com/v3/players?search=ronaldo&league=39&season=2023
+    url = f"https://api-football-v1.p.rapidapi.com/v3/players?search={player_name}&league={league}&season={season}"
+
     try:
         response = requests.get(url, headers=headers)
-        data = response.json()
-        # API-Football returns results in "response" key
-        if not data.get('response') or len(data['response']) == 0:
-            return jsonify({'error': 'Player not found'}), 404
+        try:
+            data = response.json()
+        except:
+            return jsonify({
+                'error': 'Error parsing JSON from API-Football players endpoint',
+                'raw_response': response.text
+            }), 500
 
-        # Attempt to select the best matching player from the response
-        best_match = None
-        for item in data['response']:
-            player_info = item.get("player", {})
-            first = player_info.get("firstname", "")
-            last = player_info.get("lastname", "")
-            full_name = f"{first} {last}".strip().lower()
-            if search_query in full_name:
-                best_match = item
-                break
-        if not best_match:
-            best_match = data['response'][0]
-        return jsonify(best_match), 200
+        # If "response" array is empty => player not found
+        if not data.get('response'):
+            return jsonify({'error': 'Player not found or no data'}), 404
+
+        return jsonify(data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ Soccer Fixtures Endpoint (API-Football) ------------------
+# ------------------ Soccer Fixtures (API-Football) ------------------
 @app.route('/soccer/fixtures_apifootball', methods=['GET'])
 def soccer_fixtures_apifootball():
     """
-    Fetch fixtures using API-Football.
-    Usage example:
-      /soccer/fixtures_apifootball?league=39&season=2023
+    Usage: /soccer/fixtures_apifootball?league=39&season=2023
     """
     league = request.args.get('league')
     season = request.args.get('season')
     if not league or not season:
-        return jsonify({'error': 'Missing league or season param. Example: ?league=39&season=2023'}), 400
+        return jsonify({'error': 'Missing league or season. e.g. ?league=39&season=2023'}), 400
 
     headers = {
         "X-RapidAPI-Key": os.environ.get("API_FOOTBALL_KEY"),
@@ -124,14 +118,13 @@ def soccer_fixtures_apifootball():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ Soccer Fixtures Endpoint (Football-Data.org) ------------------
+# ------------------ Soccer Fixtures (Football-Data.org) ------------------
+# Official docs: https://www.football-data.org/documentation/api
 @app.route('/soccer/fixtures_footballdata', methods=['GET'])
 def soccer_fixtures_footballdata():
     """
-    Fetch fixtures using Football-Data.org.
-    Usage example:
-      /soccer/fixtures_footballdata?competition=2021
-    (e.g., competition=2021 for EPL)
+    Usage: /soccer/fixtures_footballdata?competition=2021
+    (2021 => EPL)
     """
     competition = request.args.get('competition', '2021')
     headers = {
@@ -144,25 +137,24 @@ def soccer_fixtures_footballdata():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ Esports Stats Endpoint (PandaScore) ------------------
+# ------------------ Esports Stats (PandaScore) ------------------
 @app.route('/esports/player_stats', methods=['GET'])
 def esports_stats():
     player_name = request.args.get('player')
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
 
-    search_query = player_name.strip().lower()
     headers = {
         'Authorization': f"Bearer {os.environ.get('PANDASCORE_API_KEY')}"
     }
-    url = f"https://api.pandascore.co/players?search[name]={search_query}"
+    url = f"https://api.pandascore.co/players?search[name]={player_name}"
     try:
         response = requests.get(url, headers=headers)
         return jsonify(response.json()), response.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ Betting Odds Endpoint (OddsAPI) ------------------
+# ------------------ Betting Odds (OddsAPI) ------------------
 @app.route('/odds', methods=['GET'])
 def odds():
     sport = request.args.get('sport', 'basketball_nba')
