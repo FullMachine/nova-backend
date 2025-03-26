@@ -18,9 +18,13 @@ def nba_player_stats():
     player_name = request.args.get('player')
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
+
+    # Clean the search query to lower case and strip extra spaces
+    search_query = player_name.strip().lower()
+
     try:
         # Search for the player using BallDontLie API
-        search_url = f"https://www.balldontlie.io/api/v1/players?search={player_name}"
+        search_url = f"https://www.balldontlie.io/api/v1/players?search={search_query}"
         search_response = requests.get(search_url)
         try:
             search_data = search_response.json()
@@ -33,7 +37,17 @@ def nba_player_stats():
         if not search_data.get('data'):
             return jsonify({'error': 'Player not found'}), 404
 
-        player_id = search_data['data'][0]['id']
+        # Attempt to pick the best matching player based on name
+        best_match = None
+        for player in search_data['data']:
+            full_name = f"{player.get('first_name', '')} {player.get('last_name', '')}".strip().lower()
+            if search_query in full_name:
+                best_match = player
+                break
+        if not best_match:
+            best_match = search_data['data'][0]
+        player_id = best_match['id']
+
         # Fetch season averages for that player
         stats_url = f"https://www.balldontlie.io/api/v1/season_averages?player_ids[]={player_id}"
         stats_response = requests.get(stats_url)
@@ -56,14 +70,33 @@ def soccer_stats():
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
 
+    # Clean the search query
+    search_query = player_name.strip().lower()
     headers = {
         'X-RapidAPI-Key': os.environ.get('API_FOOTBALL_KEY'),
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
     }
-    url = f"https://api-football-v1.p.rapidapi.com/v3/players?search={player_name}&season=2023"
+    url = f"https://api-football-v1.p.rapidapi.com/v3/players?search={search_query}&season=2023"
     try:
         response = requests.get(url, headers=headers)
-        return jsonify(response.json()), response.status_code
+        data = response.json()
+        # API-Football returns results in "response" key
+        if not data.get('response') or len(data['response']) == 0:
+            return jsonify({'error': 'Player not found'}), 404
+
+        # Attempt to select the best matching player from the response
+        best_match = None
+        for item in data['response']:
+            player_info = item.get("player", {})
+            first = player_info.get("firstname", "")
+            last = player_info.get("lastname", "")
+            full_name = f"{first} {last}".strip().lower()
+            if search_query in full_name:
+                best_match = item
+                break
+        if not best_match:
+            best_match = data['response'][0]
+        return jsonify(best_match), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -118,10 +151,11 @@ def esports_stats():
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
 
+    search_query = player_name.strip().lower()
     headers = {
         'Authorization': f"Bearer {os.environ.get('PANDASCORE_API_KEY')}"
     }
-    url = f"https://api.pandascore.co/players?search[name]={player_name}"
+    url = f"https://api.pandascore.co/players?search[name]={search_query}"
     try:
         response = requests.get(url, headers=headers)
         return jsonify(response.json()), response.status_code
