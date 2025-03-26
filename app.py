@@ -13,8 +13,8 @@ def ping():
     return jsonify({'message': 'Nova says pong!'}), 200
 
 # ------------------ NBA Stats (BallDontLie) ------------------
-# Note: Use https://balldontlie.io/api/v1 (NO www.)
-# Also requires ?player= and ?season=, e.g. player=lebron james, season=2022
+# Official docs: https://www.balldontlie.io/#introduction
+# Requires ?player= (e.g. "lebron james") and ?season= (e.g. "2022")
 @app.route('/nba/player_stats', methods=['GET'])
 def nba_player_stats():
     player_name = request.args.get('player')  # e.g. "lebron james"
@@ -25,32 +25,33 @@ def nba_player_stats():
         }), 400
 
     try:
-        # 1) Search for the player
-        search_url = f"https://balldontlie.io/api/v1/players?search={player_name}"
-        search_resp = requests.get(search_url)
+        # 1) Search for the player (USE api.balldontlie.io, not balldontlie.io)
+        search_url = f"https://api.balldontlie.io/v1/players?search={player_name}"
+        headers = {"Accept": "application/json"}
+        search_resp = requests.get(search_url, headers=headers)
         try:
             search_data = search_resp.json()
         except:
             return jsonify({
                 'error': 'Error parsing JSON from BallDontLie search',
-                'raw_response': search_resp.text
+                'raw_response': search_resp.text[:500]
             }), 500
 
         if not search_data.get('data'):
             return jsonify({'error': 'Player not found'}), 404
 
+        # Grab the first matching player
         player_id = search_data['data'][0]['id']
 
         # 2) Fetch season averages
-        # e.g. /season_averages?season=2022&player_ids[]=237
-        stats_url = f"https://balldontlie.io/api/v1/season_averages?season={season}&player_ids[]={player_id}"
-        stats_resp = requests.get(stats_url)
+        stats_url = f"https://api.balldontlie.io/v1/season_averages?season={season}&player_ids[]={player_id}"
+        stats_resp = requests.get(stats_url, headers=headers)
         try:
             stats_data = stats_resp.json()
         except:
             return jsonify({
                 'error': 'Error parsing JSON from BallDontLie season averages',
-                'raw_response': stats_resp.text
+                'raw_response': stats_resp.text[:500]
             }), 500
 
         return jsonify(stats_data), 200
@@ -58,15 +59,16 @@ def nba_player_stats():
         return jsonify({'error': str(e)}), 500
 
 # ------------------ Soccer Player Stats (API-Football) ------------------
-# Requires ?player=, ?league=, ?season=, e.g. player=ronaldo&league=39&season=2023
+# Official docs: https://www.api-football.com/documentation-v3
+# Typically requires ?player=, ?league=, ?season= (e.g., league=39, season=2023)
 @app.route('/soccer/player_stats', methods=['GET'])
 def soccer_player_stats():
-    player_name = request.args.get('player')
-    league = request.args.get('league')
-    season = request.args.get('season')
+    player_name = request.args.get('player')   # e.g. "haaland"
+    league = request.args.get('league')        # e.g. "39" (EPL)
+    season = request.args.get('season')        # e.g. "2023"
     if not player_name or not league or not season:
         return jsonify({
-            'error': 'Missing params. Usage: /soccer/player_stats?player=ronaldo&league=39&season=2023'
+            'error': 'Missing params. Usage: /soccer/player_stats?player=haaland&league=39&season=2023'
         }), 400
 
     headers = {
@@ -86,6 +88,9 @@ def soccer_player_stats():
 # ------------------ Soccer Fixtures (API-Football) ------------------
 @app.route('/soccer/fixtures_apifootball', methods=['GET'])
 def soccer_fixtures_apifootball():
+    """
+    Usage: /soccer/fixtures_apifootball?league=39&season=2023
+    """
     league = request.args.get('league')
     season = request.args.get('season')
     if not league or not season:
