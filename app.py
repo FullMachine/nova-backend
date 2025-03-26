@@ -25,10 +25,15 @@ def nba_player_stats():
         }), 400
 
     try:
-        # 1) Search for the player (USE api.balldontlie.io, not balldontlie.io)
-        search_url = f"https://api.balldontlie.io/v1/players?search={player_name}"
-        headers = {"Accept": "application/json"}
+        # 1) Search for the player on "www.balldontlie.io/api/v1" using a user-agent
+        search_url = f"https://www.balldontlie.io/api/v1/players?search={player_name}"
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json"
+        }
         search_resp = requests.get(search_url, headers=headers)
+
+        # Attempt to parse JSON
         try:
             search_data = search_resp.json()
         except:
@@ -44,7 +49,7 @@ def nba_player_stats():
         player_id = search_data['data'][0]['id']
 
         # 2) Fetch season averages
-        stats_url = f"https://api.balldontlie.io/v1/season_averages?season={season}&player_ids[]={player_id}"
+        stats_url = f"https://www.balldontlie.io/api/v1/season_averages?season={season}&player_ids[]={player_id}"
         stats_resp = requests.get(stats_url, headers=headers)
         try:
             stats_data = stats_resp.json()
@@ -60,12 +65,12 @@ def nba_player_stats():
 
 # ------------------ Soccer Player Stats (API-Football) ------------------
 # Official docs: https://www.api-football.com/documentation-v3
-# Typically requires ?player=, ?league=, ?season= (e.g., league=39, season=2023)
+# Typically requires ?player=, ?league=, ?season=
 @app.route('/soccer/player_stats', methods=['GET'])
 def soccer_player_stats():
-    player_name = request.args.get('player')   # e.g. "haaland"
-    league = request.args.get('league')        # e.g. "39" (EPL)
-    season = request.args.get('season')        # e.g. "2023"
+    player_name = request.args.get('player')
+    league = request.args.get('league')
+    season = request.args.get('season')
     if not player_name or not league or not season:
         return jsonify({
             'error': 'Missing params. Usage: /soccer/player_stats?player=haaland&league=39&season=2023'
@@ -108,9 +113,12 @@ def soccer_fixtures_apifootball():
         return jsonify({'error': str(e)}), 500
 
 # ------------------ Soccer Fixtures (Football-Data.org) ------------------
-# e.g. /soccer/fixtures_footballdata?competition=2021
 @app.route('/soccer/fixtures_footballdata', methods=['GET'])
 def soccer_fixtures_footballdata():
+    """
+    Usage: /soccer/fixtures_footballdata?competition=2021
+    (2021 => EPL)
+    """
     competition = request.args.get('competition', '2021')
     headers = {
         'X-Auth-Token': os.environ.get('FOOTBALL_DATA_KEY')
