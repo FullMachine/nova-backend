@@ -32,7 +32,7 @@ def nba_player_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ Soccer Stats (API-FOOTBALL) ------------------
+# ------------------ Soccer Stats (API-FOOTBALL via RapidAPI) ------------------
 @app.route('/soccer/player_stats', methods=['GET'])
 def soccer_stats():
     player_name = request.args.get('player')
@@ -49,6 +49,20 @@ def soccer_stats():
     try:
         response = requests.get(url, headers=headers)
         return jsonify(response.json())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ------------------ New: Soccer Fixtures (Football-Data.org) ------------------
+@app.route('/soccer/fixtures', methods=['GET'])
+def soccer_fixtures():
+    headers = {'X-Auth-Token': os.environ.get('FOOTBALL_DATA_KEY')}
+    url = "https://api.football-data.org/v4/matches"
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            return jsonify(response.json()), 200
+        else:
+            return jsonify({'error': 'Failed to fetch fixtures from Football-Data.org'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -82,7 +96,8 @@ def odds():
     params = {
         'apiKey': os.environ.get('ODDS_API_KEY'),
         'regions': region,
-        'markets': market
+        'markets': market,
+        'oddsFormat': 'decimal'
     }
 
     try:
