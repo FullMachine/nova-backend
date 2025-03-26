@@ -8,7 +8,11 @@ app = Flask(__name__)
 def home():
     return "Nova Backend is live!"
 
-# ------------------ NBA Stats (BallDontLie) ------------------
+@app.route('/ping', methods=['GET'])
+def ping():
+    return jsonify({'message': 'Nova says pong!'}), 200
+
+# ------------------ NBA Stats Endpoint (BallDontLie) ------------------
 @app.route('/nba/player_stats', methods=['GET'])
 def nba_player_stats():
     player_name = request.args.get('player')
@@ -32,7 +36,7 @@ def nba_player_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ Soccer Stats (API-FOOTBALL via RapidAPI) ------------------
+# ------------------ Soccer Stats Endpoint (API-Football via RapidAPI) ------------------
 @app.route('/soccer/player_stats', methods=['GET'])
 def soccer_stats():
     player_name = request.args.get('player')
@@ -43,7 +47,7 @@ def soccer_stats():
         'X-RapidAPI-Key': os.environ.get('API_FOOTBALL_KEY'),
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
     }
-
+    # Example: search for player in season 2023
     url = f"https://api-football-v1.p.rapidapi.com/v3/players?search={player_name}&season=2023"
 
     try:
@@ -52,21 +56,51 @@ def soccer_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ New: Soccer Fixtures (Football-Data.org) ------------------
-@app.route('/soccer/fixtures', methods=['GET'])
-def soccer_fixtures():
-    headers = {'X-Auth-Token': os.environ.get('FOOTBALL_DATA_KEY')}
-    url = "https://api.football-data.org/v4/matches"
+# ------------------ Soccer Fixtures Endpoint (API-Football) ------------------
+@app.route('/soccer/fixtures_apifootball', methods=['GET'])
+def soccer_fixtures_apifootball():
+    """
+    Fetch fixtures using API-Football.
+    Usage example:
+      /soccer/fixtures_apifootball?league=39&season=2023
+    """
+    league = request.args.get('league')
+    season = request.args.get('season')
+    if not league or not season:
+        return jsonify({'error': 'Missing league or season param. Example: ?league=39&season=2023'}), 400
+
+    headers = {
+        "X-RapidAPI-Key": os.environ.get("API_FOOTBALL_KEY"),
+        "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+    }
+    url = f"https://api-football-v1.p.rapidapi.com/v3/fixtures?league={league}&season={season}"
     try:
         response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return jsonify(response.json()), 200
-        else:
-            return jsonify({'error': 'Failed to fetch fixtures from Football-Data.org'}), 500
+        return jsonify(response.json()), response.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ Esports Stats (PandaScore) ------------------
+# ------------------ Soccer Fixtures Endpoint (Football-Data.org) ------------------
+@app.route('/soccer/fixtures_footballdata', methods=['GET'])
+def soccer_fixtures_footballdata():
+    """
+    Fetch fixtures using Football-Data.org.
+    Usage example:
+      /soccer/fixtures_footballdata?competition=2021
+    (e.g., competition=2021 for EPL)
+    """
+    competition = request.args.get('competition', '2021')
+    headers = {
+        'X-Auth-Token': os.environ.get('FOOTBALL_DATA_KEY')
+    }
+    url = f"https://api.football-data.org/v4/competitions/{competition}/matches"
+    try:
+        response = requests.get(url, headers=headers)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ------------------ Esports Stats Endpoint (PandaScore) ------------------
 @app.route('/esports/player_stats', methods=['GET'])
 def esports_stats():
     player_name = request.args.get('player')
@@ -76,16 +110,14 @@ def esports_stats():
     headers = {
         'Authorization': f"Bearer {os.environ.get('PANDASCORE_API_KEY')}"
     }
-
     url = f"https://api.pandascore.co/players?search[name]={player_name}"
-
     try:
         response = requests.get(url, headers=headers)
         return jsonify(response.json())
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ------------------ Betting Odds (OddsAPI) ------------------
+# ------------------ Betting Odds Endpoint (OddsAPI) ------------------
 @app.route('/odds', methods=['GET'])
 def odds():
     sport = request.args.get('sport', 'basketball_nba')
@@ -99,7 +131,6 @@ def odds():
         'markets': market,
         'oddsFormat': 'decimal'
     }
-
     try:
         response = requests.get(url, params=params)
         return jsonify(response.json())
