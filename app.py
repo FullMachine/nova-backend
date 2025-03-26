@@ -4,10 +4,12 @@ import requests
 
 app = Flask(__name__)
 
+# Home route to confirm the backend is live
 @app.route('/')
 def home():
     return "Nova Backend is live!"
 
+# Ping route for quick testing
 @app.route('/ping', methods=['GET'])
 def ping():
     return jsonify({'message': 'Nova says pong!'}), 200
@@ -18,21 +20,19 @@ def nba_player_stats():
     player_name = request.args.get('player')
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
-
     try:
-        url = f"https://www.balldontlie.io/api/v1/players?search={player_name}"
-        response = requests.get(url)
-        data = response.json()
-
-        if not data['data']:
+        # Search for player using BallDontLie API
+        search_url = f"https://www.balldontlie.io/api/v1/players?search={player_name}"
+        search_response = requests.get(search_url)
+        search_data = search_response.json()
+        if not search_data.get('data'):
             return jsonify({'error': 'Player not found'}), 404
-
-        player_id = data['data'][0]['id']
+        player_id = search_data['data'][0]['id']
+        # Fetch season averages for that player
         stats_url = f"https://www.balldontlie.io/api/v1/season_averages?player_ids[]={player_id}"
         stats_response = requests.get(stats_url)
         stats = stats_response.json()
-
-        return jsonify(stats)
+        return jsonify(stats), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -42,17 +42,15 @@ def soccer_stats():
     player_name = request.args.get('player')
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
-
     headers = {
         'X-RapidAPI-Key': os.environ.get('API_FOOTBALL_KEY'),
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
     }
     # Example: search for player in season 2023
     url = f"https://api-football-v1.p.rapidapi.com/v3/players?search={player_name}&season=2023"
-
     try:
         response = requests.get(url, headers=headers)
-        return jsonify(response.json())
+        return jsonify(response.json()), response.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -61,14 +59,13 @@ def soccer_stats():
 def soccer_fixtures_apifootball():
     """
     Fetch fixtures using API-Football.
-    Usage example:
-      /soccer/fixtures_apifootball?league=39&season=2023
+    Usage: /soccer/fixtures_apifootball?league=39&season=2023
+    (e.g., league=39 for EPL, season=2023)
     """
     league = request.args.get('league')
     season = request.args.get('season')
     if not league or not season:
         return jsonify({'error': 'Missing league or season param. Example: ?league=39&season=2023'}), 400
-
     headers = {
         "X-RapidAPI-Key": os.environ.get("API_FOOTBALL_KEY"),
         "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
@@ -85,8 +82,7 @@ def soccer_fixtures_apifootball():
 def soccer_fixtures_footballdata():
     """
     Fetch fixtures using Football-Data.org.
-    Usage example:
-      /soccer/fixtures_footballdata?competition=2021
+    Usage: /soccer/fixtures_footballdata?competition=2021
     (e.g., competition=2021 for EPL)
     """
     competition = request.args.get('competition', '2021')
@@ -106,14 +102,13 @@ def esports_stats():
     player_name = request.args.get('player')
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
-
     headers = {
         'Authorization': f"Bearer {os.environ.get('PANDASCORE_API_KEY')}"
     }
     url = f"https://api.pandascore.co/players?search[name]={player_name}"
     try:
         response = requests.get(url, headers=headers)
-        return jsonify(response.json())
+        return jsonify(response.json()), response.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -123,7 +118,6 @@ def odds():
     sport = request.args.get('sport', 'basketball_nba')
     region = request.args.get('region', 'us')
     market = request.args.get('market', 'h2h')
-
     url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
     params = {
         'apiKey': os.environ.get('ODDS_API_KEY'),
@@ -133,7 +127,7 @@ def odds():
     }
     try:
         response = requests.get(url, params=params)
-        return jsonify(response.json())
+        return jsonify(response.json()), response.status_code
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -147,4 +141,4 @@ def server_error(e):
     return jsonify({'error': 'Server error'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=8080, debug=True)
