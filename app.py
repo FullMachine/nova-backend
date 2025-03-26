@@ -4,12 +4,10 @@ import requests
 
 app = Flask(__name__)
 
-# Home route to confirm the backend is live
 @app.route('/')
 def home():
     return "Nova Backend is live!"
 
-# Ping route for quick testing
 @app.route('/ping', methods=['GET'])
 def ping():
     return jsonify({'message': 'Nova says pong!'}), 200
@@ -21,17 +19,32 @@ def nba_player_stats():
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
     try:
-        # Search for player using BallDontLie API
+        # Search for the player using BallDontLie API
         search_url = f"https://www.balldontlie.io/api/v1/players?search={player_name}"
         search_response = requests.get(search_url)
-        search_data = search_response.json()
+        try:
+            search_data = search_response.json()
+        except Exception as e:
+            return jsonify({
+                'error': 'Error parsing JSON from players endpoint',
+                'raw_response': search_response.text
+            }), 500
+
         if not search_data.get('data'):
             return jsonify({'error': 'Player not found'}), 404
+
         player_id = search_data['data'][0]['id']
         # Fetch season averages for that player
         stats_url = f"https://www.balldontlie.io/api/v1/season_averages?player_ids[]={player_id}"
         stats_response = requests.get(stats_url)
-        stats = stats_response.json()
+        try:
+            stats = stats_response.json()
+        except Exception as e:
+            return jsonify({
+                'error': 'Error parsing JSON from season averages endpoint',
+                'raw_response': stats_response.text
+            }), 500
+
         return jsonify(stats), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -42,11 +55,11 @@ def soccer_stats():
     player_name = request.args.get('player')
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
+
     headers = {
         'X-RapidAPI-Key': os.environ.get('API_FOOTBALL_KEY'),
         'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
     }
-    # Example: search for player in season 2023
     url = f"https://api-football-v1.p.rapidapi.com/v3/players?search={player_name}&season=2023"
     try:
         response = requests.get(url, headers=headers)
@@ -59,13 +72,14 @@ def soccer_stats():
 def soccer_fixtures_apifootball():
     """
     Fetch fixtures using API-Football.
-    Usage: /soccer/fixtures_apifootball?league=39&season=2023
-    (e.g., league=39 for EPL, season=2023)
+    Usage example:
+      /soccer/fixtures_apifootball?league=39&season=2023
     """
     league = request.args.get('league')
     season = request.args.get('season')
     if not league or not season:
         return jsonify({'error': 'Missing league or season param. Example: ?league=39&season=2023'}), 400
+
     headers = {
         "X-RapidAPI-Key": os.environ.get("API_FOOTBALL_KEY"),
         "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
@@ -82,7 +96,8 @@ def soccer_fixtures_apifootball():
 def soccer_fixtures_footballdata():
     """
     Fetch fixtures using Football-Data.org.
-    Usage: /soccer/fixtures_footballdata?competition=2021
+    Usage example:
+      /soccer/fixtures_footballdata?competition=2021
     (e.g., competition=2021 for EPL)
     """
     competition = request.args.get('competition', '2021')
@@ -102,6 +117,7 @@ def esports_stats():
     player_name = request.args.get('player')
     if not player_name:
         return jsonify({'error': 'Missing player name'}), 400
+
     headers = {
         'Authorization': f"Bearer {os.environ.get('PANDASCORE_API_KEY')}"
     }
